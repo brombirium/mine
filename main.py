@@ -1,4 +1,5 @@
 import numpy as np
+import time
 
 
 def get_col(index):
@@ -38,6 +39,11 @@ class Field:
         self.n_col = n_col
         self.cell = self.EMPTY * np.ones(shape=(self.n_row, self.n_col))
         self.fog = self.FOGGY * np.ones(shape=(self.n_row, self.n_col))
+        self.win = False
+        self.dead = False
+        self.t_start = 0
+        self.cursor_x = 0
+        self.cursor_y = 0
 
     def fog_up(self):
         self.fog = self.FOGGY * np.ones(shape=(self.n_row, self.n_col))
@@ -84,18 +90,37 @@ class Field:
         else:
             self.fog[i][j] = self.FOG_MARKED
 
-    def print_board(self, win=False):
+    def bombs_total(self):
+        count = 0
+        for i in range(self.n_row):
+            for j in range(self.n_col):
+                if self.cell[i][j] == self.BOMB:
+                    count += 1
+        return count
+
+    def bombs_unmarked(self):
+        count = 0
+        for i in range(self.n_row):
+            for j in range(self.n_col):
+                if self.cell[i][j] == self.BOMB and self.fog[i][j] != self.FOG_MARKED:
+                    count += 1
+        return count
+
+    def print_board(self):
+        dead = self.check_dead()
+        win = self.check_win()
+
         bomb_color = Colors.GREEN if win else Colors.RED
-        count_color = Colors.DARK_GRAY if win else Colors.YELLOW
+        axis_color = Colors.DARK_GRAY if win else Colors.YELLOW
         fog_color = Colors.DARK_GRAY
         mark_color = Colors.RED
-        nbor_color = Colors.BLUE
+        nbor_color = Colors.GRAY if win else Colors.BLUE
         print(f"   ", end="")
         for j in range(self.n_col):
-            print_col(count_color, f" {chr(ord('a') + j)} ", False)
+            print_col(axis_color, f" {chr(ord('1') + j)} ", False)
         print()
         for i in range(self.n_row):
-            print_col(count_color, f" {chr(ord('A') + i)} ", False)
+            print_col(axis_color, f" {chr(ord('a') + i)} ", False)
             for j in range(self.n_col):
                 if self.fog[i][j] == self.FOGGY:
                     print_col(fog_color, " # ", False)
@@ -113,70 +138,140 @@ class Field:
                 elif self.cell[i][j] == self.BOMB:
                     print_col(bomb_color, "*", False)
                 print(" ", end="")
-            print_col(count_color, f" {chr(ord('A') + i)} ", False)
+            print_col(axis_color, f" {chr(ord('a') + i)} ", False)
+            if i == 0:
+                if win:
+                    print_col(Colors.GREEN, "   Congratulations, you found all bombs!", False)
+                elif dead:
+                    print_col(Colors.RED, "   You exploded! Try again... :)", False)
+                else:
+                    print(f"   Bombs left: {self.bombs_unmarked()}/{self.bombs_total()}", end="")
+            if i == 1:
+                if win or dead:
+                    print_col(Colors.GRAY, f"   Time: {self.get_time():.1f} s", False)
+
             print("")
         print(f"   ", end="")
         for j in range(self.n_col):
-            print_col(count_color, f" {chr(ord('a') + j)} ", False)
+            print_col(axis_color, f" {chr(ord('1') + j)} ", False)
         print()
 
     def check_win(self):
-        win = True
+        if self.win: return True
+        self.win = True
         for i in range(self.n_row):
             for j in range(self.n_col):
                 c = self.cell[i][j]
                 f = self.fog[i][j]
                 if c == self.BOMB:
-                    if f == self.NO_FOG: win = False
+                    if f == self.NO_FOG: self.win = False
                 elif c == self.EMPTY:
-                    if f == self.FOGGY: win = False
-        return win
+                    if f == self.FOGGY: self.win = False
+        return self.win
 
     def check_dead(self):
+        if self.dead: return True
+        self.dead = False
         for i in range(self.n_row):
             for j in range(self.n_col):
                 c = self.cell[i][j]
                 f = self.fog[i][j]
                 if c == self.BOMB:
-                    if f == self.NO_FOG: return True
-        return False
+                    if f == self.NO_FOG: self.dead = True
+        return self.dead
+
+    def running(self):
+        if self.dead: return False
+        if self.win: return False
+        return True
+
+    def reset_state(self):
+        self.dead = False
+        self.win = False
+
+    def tic(self):
+        self.t_start = time.time()
+
+    def get_time(self):
+        return time.time() - self.t_start
+
+    def cursor_reset(self):
+        self.cursor_x = 0
+        self.cursor_y = 0
+
+    def cursor_move_left(self):
+        if self.cursor_x > 0: self.cursor_x -= 1
+
+    def cursor_move_right(self):
+        if self.cursor_x < self.n_col - 1: self.cursor_x += 1
+
+    def cursor_move_up(self):
+        if self.cursor_y > 0: self.cursor_y -= 1
+
+    def cursor_move_down(self):
+        if self.cursor_y < self.n_row - 1: self.cursor_y += 1
+
+    def cursor_uncover(self):
+        print(f"uncover")
+
+    def cursor_action(self, cmd):
+        if cmd[0] == 'a':   self.cursor_move_left()
+        elif cmd[0] == 'd': self.cursor_move_right()
+        elif cmd[0] == 'w': self.cursor_move_up()
+        elif cmd[0] == 's': self.cursor_move_down()
+        elif cmd[0] == ' ': self.cursor_uncover()
 
 
 def main():
-    n_row = 10
-    n_col = 12
+    n_row = 16
+    n_col = 16
+    percentage = 0.2
     field = Field(n_row, n_col)
-    field.randomize(0.15)
+    field.randomize(percentage)
     field.fog_up()
+    field.cursor_reset()
 
-    running = True
-    win = False
-    while running:
+    while True:
+        field.tic()
+        while True:
+            field.print_board()
+            print("Next Move: ", end="")
+            cmd = input()
+            mark = False
+            if cmd[0] == '!':
+                mark = True
+                cmd = cmd[1:3]
+                print(f"mark mode -> cmd='{cmd}'")
+            i_cmd = ord(cmd[0]) - ord('a')
+            j_cmd = ord(cmd[1]) - ord('1')
+            if mark:
+                field.mark(i_cmd, j_cmd)
+            else:
+                field.uncover(i_cmd, j_cmd)
+
+            field.check_dead()
+            field.check_win()
+            if not field.running():
+                break
+
+        if field.check_win(): field.defog()
         field.print_board()
-        print("Next Move: ", end="")
-        cmd = input()
-        mark = False
-        if cmd[0] == '!':
-            mark = True
-            cmd = cmd[1:3]
-            print(f"mark mode -> cmd='{cmd}'")
-        i_cmd = ord(cmd[0]) - ord('A')
-        j_cmd = ord(cmd[1]) - ord('a')
-        if mark:
-            field.mark(i_cmd, j_cmd)
-        else:
-            field.uncover(i_cmd, j_cmd)
-        dead = field.check_dead()
-        if dead:
-            print_col(Colors.RED, "You exploded! Try again... :)", True)
-            running = False
-        win = field.check_win()
-        if win:
-            print_col(Colors.GREEN, "You have won! All non-bombs are uncovered. Congratulations!", True)
-            running = False
 
-    if win: field.defog()
-    field.print_board(win)
+        print_col(Colors.BLUE, "New Game? (y/n) ", False)
+        while True:
+            cmd = input()
+            if cmd[0] == 'n':
+                print_col(Colors.YELLOW, "Goodbye!", True)
+                exit()
+            elif cmd[0] == 'y':
+                print_col(Colors.BLUE, "\n\nStarting New Game:", True)
+                break
+            else:
+                print_col(Colors.RED, "Invalid response. New Game? (y/n) ", True)
+
+        field.randomize(percentage)
+        field.fog_up()
+        field.reset_state()
 
 
 if __name__ == '__main__':
