@@ -84,19 +84,24 @@ class Field:
         else:
             self.fog[i][j] = self.FOG_MARKED
 
-    def print_board(self):
+    def print_board(self, win=False):
+        bomb_color = Colors.GREEN if win else Colors.RED
+        count_color = Colors.DARK_GRAY if win else Colors.YELLOW
+        fog_color = Colors.DARK_GRAY
+        mark_color = Colors.RED
+        nbor_color = Colors.BLUE
         print(f"   ", end="")
         for j in range(self.n_col):
-            print_col(Colors.YELLOW, f" {chr(ord('a') + j)} ", False)
+            print_col(count_color, f" {chr(ord('a') + j)} ", False)
         print()
         for i in range(self.n_row):
-            print_col(Colors.YELLOW, f" {chr(ord('A') + i)} ", False)
+            print_col(count_color, f" {chr(ord('A') + i)} ", False)
             for j in range(self.n_col):
                 if self.fog[i][j] == self.FOGGY:
-                    print_col(Colors.PURPLE, " # ", False)
+                    print_col(fog_color, " # ", False)
                     continue
                 if self.fog[i][j] == self.FOG_MARKED:
-                    print_col(Colors.GREEN, " # ", False)
+                    print_col(mark_color, " # ", False)
                     continue
                 print(" ", end="")
                 if self.cell[i][j] == self.EMPTY:
@@ -104,15 +109,15 @@ class Field:
                     if n_bor == 0:
                         print(" ", end="")
                     else:
-                        print_col(Colors.BLUE, f"{n_bor}", False)
+                        print_col(nbor_color, f"{n_bor}", False)
                 elif self.cell[i][j] == self.BOMB:
-                    print_col(Colors.RED, "*", False)
+                    print_col(bomb_color, "*", False)
                 print(" ", end="")
-            print_col(Colors.YELLOW, f" {chr(ord('A') + i)} ", False)
+            print_col(count_color, f" {chr(ord('A') + i)} ", False)
             print("")
         print(f"   ", end="")
         for j in range(self.n_col):
-            print_col(Colors.YELLOW, f" {chr(ord('a') + j)} ", False)
+            print_col(count_color, f" {chr(ord('a') + j)} ", False)
         print()
 
     def check_win(self):
@@ -138,8 +143,8 @@ class Field:
 
 
 def main():
-    n_row = 15
-    n_col = 18
+    n_row = 10
+    n_col = 12
     field = Field(n_row, n_col)
     field.randomize(0.15)
     field.fog_up()
@@ -167,11 +172,11 @@ def main():
             running = False
         win = field.check_win()
         if win:
-            print_col(Colors.GREEN, "You have won! All cells expect the bombs are uncovered. Congratulations!", True)
+            print_col(Colors.GREEN, "You have won! All non-bombs are uncovered. Congratulations!", True)
             running = False
 
     if win: field.defog()
-    field.print_board()
+    field.print_board(win)
 
 
 if __name__ == '__main__':
