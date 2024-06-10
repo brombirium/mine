@@ -1,9 +1,14 @@
 import numpy as np
 import time
 
+import Getch
+
+ENABLE_COLORS = True
+
 
 def get_col(index):
-    return f"\033[{90 + index}m"
+    if ENABLE_COLORS: return f"\033[{90 + index}m"
+    return ""
 
 
 class Colors:
@@ -16,9 +21,9 @@ class Colors:
     LIGHT_BLUE = get_col(6)
     WHITE = get_col(7)
     GRAY = get_col(8)
-    ENDC = '\033[0m'
-    BOLD = '\033[1m'
-    UNDERLINE = '\033[4m'
+    ENDC = '\033[0m' if ENABLE_COLORS else ''
+    # BOLD = '\033[1m'
+    # UNDERLINE = '\033[4m'
 
 
 def print_col(color, string, endline):
@@ -106,7 +111,11 @@ class Field:
                     count += 1
         return count
 
+    SHOW_AXIS = False
+
     def print_board(self):
+        print("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n")
+
         dead = self.check_dead()
         win = self.check_win()
 
@@ -115,21 +124,22 @@ class Field:
         fog_color = Colors.DARK_GRAY
         mark_color = Colors.RED
         nbor_color = Colors.GRAY if win else Colors.BLUE
-        print(f"   ", end="")
-        for j in range(self.n_col):
-            print_col(axis_color, f" {chr(ord('1') + j)} ", False)
-        print()
-        for i in range(self.n_row):
-            print_col(axis_color, f" {chr(ord('a') + i)} ", False)
+        cursor_color = Colors.YELLOW
+        if self.SHOW_AXIS:
+            print(f"   ", end="")
             for j in range(self.n_col):
+                print_col(axis_color, f" {chr(ord('1') + j)} ", False)
+            print()
+        for i in range(self.n_row):
+            if self.SHOW_AXIS: print_col(axis_color, f" {chr(ord('a') + i)} ", False)
+            for j in range(self.n_col):
+                if i == self.cursor_x and j == self.cursor_y: print_col(cursor_color, "[", False)
+                else: print_col(cursor_color, " ", False)
                 if self.fog[i][j] == self.FOGGY:
-                    print_col(fog_color, " # ", False)
-                    continue
-                if self.fog[i][j] == self.FOG_MARKED:
-                    print_col(mark_color, " # ", False)
-                    continue
-                print(" ", end="")
-                if self.cell[i][j] == self.EMPTY:
+                    print_col(fog_color, "#", False)
+                elif self.fog[i][j] == self.FOG_MARKED:
+                    print_col(mark_color, "#", False)
+                elif self.cell[i][j] == self.EMPTY:
                     n_bor = self.count_nbors(i, j)
                     if n_bor == 0:
                         print(" ", end="")
@@ -137,8 +147,9 @@ class Field:
                         print_col(nbor_color, f"{n_bor}", False)
                 elif self.cell[i][j] == self.BOMB:
                     print_col(bomb_color, "*", False)
-                print(" ", end="")
-            print_col(axis_color, f" {chr(ord('a') + i)} ", False)
+                if i == self.cursor_x and j == self.cursor_y: print_col(cursor_color, "]", False)
+                else: print_col(cursor_color, " ", False)
+            if self.SHOW_AXIS: print_col(axis_color, f" {chr(ord('a') + i)} ", False)
             if i == 0:
                 if win:
                     print_col(Colors.GREEN, "   Congratulations, you found all bombs!", False)
@@ -151,10 +162,11 @@ class Field:
                     print_col(Colors.GRAY, f"   Time: {self.get_time():.1f} s", False)
 
             print("")
-        print(f"   ", end="")
-        for j in range(self.n_col):
-            print_col(axis_color, f" {chr(ord('1') + j)} ", False)
-        print()
+        if self.SHOW_AXIS:
+            print(f"   ", end="")
+            for j in range(self.n_col):
+                print_col(axis_color, f" {chr(ord('1') + j)} ", False)
+            print()
 
     def check_win(self):
         if self.win: return True
@@ -200,32 +212,38 @@ class Field:
         self.cursor_y = 0
 
     def cursor_move_left(self):
-        if self.cursor_x > 0: self.cursor_x -= 1
-
-    def cursor_move_right(self):
-        if self.cursor_x < self.n_col - 1: self.cursor_x += 1
-
-    def cursor_move_up(self):
         if self.cursor_y > 0: self.cursor_y -= 1
 
+    def cursor_move_right(self):
+        if self.cursor_y < self.n_col - 1: self.cursor_y += 1
+
+    def cursor_move_up(self):
+        if self.cursor_x > 0: self.cursor_x -= 1
+
     def cursor_move_down(self):
-        if self.cursor_y < self.n_row - 1: self.cursor_y += 1
+        if self.cursor_x < self.n_row - 1: self.cursor_x += 1
 
     def cursor_uncover(self):
-        print(f"uncover")
+        self.uncover(self.cursor_x, self.cursor_y)
 
-    def cursor_action(self, cmd):
-        if cmd[0] == 'a':   self.cursor_move_left()
-        elif cmd[0] == 'd': self.cursor_move_right()
-        elif cmd[0] == 'w': self.cursor_move_up()
-        elif cmd[0] == 's': self.cursor_move_down()
-        elif cmd[0] == ' ': self.cursor_uncover()
+    def cursor_mark(self):
+        self.mark(self.cursor_x, self.cursor_y)
+
+    def cursor_action(self, c):
+        # print(f"c: '{c}'")
+        if c == b'a':   self.cursor_move_left()
+        elif c == b'd': self.cursor_move_right()
+        elif c == b'w': self.cursor_move_up()
+        elif c == b's': self.cursor_move_down()
+        elif c == b' ': self.cursor_uncover()
+        elif c == b'f': self.cursor_mark()
 
 
 def main():
-    n_row = 16
-    n_col = 16
+    n_row = 20
+    n_col = 25
     percentage = 0.2
+
     field = Field(n_row, n_col)
     field.randomize(percentage)
     field.fog_up()
@@ -235,19 +253,9 @@ def main():
         field.tic()
         while True:
             field.print_board()
-            print("Next Move: ", end="")
-            cmd = input()
-            mark = False
-            if cmd[0] == '!':
-                mark = True
-                cmd = cmd[1:3]
-                print(f"mark mode -> cmd='{cmd}'")
-            i_cmd = ord(cmd[0]) - ord('a')
-            j_cmd = ord(cmd[1]) - ord('1')
-            if mark:
-                field.mark(i_cmd, j_cmd)
-            else:
-                field.uncover(i_cmd, j_cmd)
+            c = Getch.getch()
+            if c == b'x': exit()
+            field.cursor_action(c)
 
             field.check_dead()
             field.check_win()
